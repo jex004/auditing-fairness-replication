@@ -74,3 +74,99 @@ def seq_hyp_test(alpha, data, model):
     if K >= U / alpha:
         return True
     return False
+
+def perm_test_m1(alpha, data, model, k):
+
+    """
+    Permuation Testing Method with No Correction for Repeated Tests
+    """
+
+    cond_A, cond_B, n_pairs = prepare_data(data)
+
+    n = min(len(cond_A), len(cond_B))
+
+    for i in range(k, n+1, k):
+
+        sample_A = cond_A.iloc[:i]
+        sample_B = cond_B.iloc[:i]
+
+        pred_A = model.predict(sample_A)
+        pred_B = model.predict(sample_B)
+
+        tpr_A = np.mean(pred_A)
+        tpr_B = np.mean(pred_B)
+
+        # Permutation test
+        p_value = permutation_test(pred_A, pred_B)
+
+        if p_value <= alpha:
+            return True
+
+    return False
+
+def perm_test_m2(alpha, data, model, k):
+
+    """
+    Permuation Testing Method with Bonferroni Correction for Repeated Tests
+    """
+
+    cond_A, cond_B, n_pairs = prepare_data(data)
+
+    n = min(len(cond_A), len(cond_B))
+
+    for j, i in enumerate(range(k, n + 1, k), start=1):
+
+        sample_A = cond_A.iloc[:i]
+        sample_B = cond_B.iloc[:i]
+
+        pred_A = model.predict(sample_A)
+        pred_B = model.predict(sample_B)
+
+        tpr_A = np.mean(pred_A)
+        tpr_B = np.mean(pred_B)
+
+        # Permutation test
+        p_value = permutation_test(pred_A, pred_B)
+
+        #Corrected Significance Level
+        alpha_j = alpha / (2 ** j)
+
+        if p_value <= alpha_j:
+            return True
+
+    return False
+
+def permutation_test(pred_A, pred_B, n_permutations=1000):
+
+    """
+    Permutation Testing Method
+
+    Combine the predictions from both groups, shuffle the predictions, and split them into two new groups
+    Calculate the permutations test statistic, record it in an array, and compare to observed statistic to obtain p-value
+    """
+
+    observed_diff = abs(np.mean(pred_A) - np.mean(pred_B))
+
+    # Combine predictions from both groups
+    combined = np.concatenate([pred_A, pred_B])
+    n = len(pred_A)
+
+    perm_diffs = []
+
+    for _ in range(n_permutations):
+
+        shuffled = np.random.permutation(combined)
+
+        perm_A = shuffled[:n]
+        perm_B = shuffled[n:]
+
+        perm_diff = abs(np.mean(perm_A) - np.mean(perm_B))
+
+        perm_diffs.append(perm_diff)
+
+    # Monte Carlo p-value
+    p_value = (
+        np.sum(np.array(perm_diffs) >= observed_diff) + 1
+    ) / (n_permutations + 1)
+
+    return p_value
